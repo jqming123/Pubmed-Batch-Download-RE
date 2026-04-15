@@ -40,7 +40,7 @@ Each run will download the enumerated files to folder by default titled "fetched
 
 Use the program via 
 ```
-python fetch_pdfs.py [-pmids or -pmf] [optional arguments]
+python src/fetch_pdfs.py [-pmids or -pmf] [optional arguments]
 ```
 
 **Arguments**:
@@ -50,7 +50,21 @@ The program has the following arguments.  It must be run with *either* -pmids or
 -pmf: A file with 1 or 2 columns of pmids and file names to download.  See below for example
 -out: The output folder to store the downloaded pdfs.  By default, this is ./fetched_pdfs
 -errors: File path to write all un-downloaded PMIDs during program run.  By default, this is ./unfetched_pmids.tsv.  This file is overwritten each run.
+-failureReport: Detailed TSV report with failure reason categories and URLs.  By default, this is <errors_without_.tsv>.reasons.tsv (or <errors>.reasons.tsv if -errors does not end with .tsv).
 -maxRetries: Maximum number of times to try to redownload a pdf on an Connection Error (specifically, an ECONNRESET code 104).
+-noBrowserFallback: Disable Playwright browser fallback. Browser fallback is enabled by default.
+-browserHeaded: Run the Playwright fallback with a visible browser window (debugging use).
+-requestTimeoutSec: HTTP timeout in seconds for requests-based fetching. Default: 40
+-browserTimeoutSec: Timeout in seconds for Playwright fallback steps. Default: 45
+-tmpDir: Temporary working directory used by this project and browser fallback runtime. Default: ./tmp
+-minIntervalSec: Minimum delay in seconds between PMID processing/retry attempts. Default: 1.0
+-maxIntervalSec: Maximum delay in seconds between PMID processing/retry attempts. Default: 3.0
+```
+
+If you use `-browserFallback`, install browser dependencies first:
+```
+pip install playwright
+playwright install chromium
 ```
 
 **PMF File Format**:
@@ -73,7 +87,7 @@ When the program cannot download files, the non-downloaded PMIDs are stored in a
 **Example script usage:**
 
 ```
-python fetch_pdfs.py -pmids 123,124,125,23923,111
+python src/fetch_pdfs.py -pmids 123,124,125,23923,111
 ```
 will place the files 123.pdf, 124.pdf, 125.pdf, 23923.pdf, and 111.pdf inside of the PDF folder, assuming all were found
 

@@ -15,7 +15,7 @@ This document summarizes what was configured for this repository and how to use 
    - `package = false`
 5. Ran `uv sync` successfully and generated `uv.lock` for reproducibility.
 6. Verified runtime works by running script help:
-   - `uv run fetch_pdfs.py -h`
+   - `uv run src/fetch_pdfs.py -h`
 
 ## Why `package = false` Is Set
 
@@ -32,19 +32,19 @@ Without `package = false`, `uv sync` may attempt editable build/install of the p
 Run directly with uv (recommended):
 
 ```bash
-uv run fetch_pdfs.py -pmids 22673749,9685366
+uv run src/fetch_pdfs.py -pmids 22673749,9685366
 ```
 
 Use file input mode:
 
 ```bash
-uv run fetch_pdfs.py -pmf example_pmf.tsv
+uv run src/fetch_pdfs.py -pmf example_pmf.tsv
 ```
 
 Specify output and error files:
 
 ```bash
-uv run fetch_pdfs.py -pmids 22673749,9685366 -out /tmp/pubmed_debug_out -errors /tmp/pubmed_debug_errors.tsv -maxRetries 1
+uv run src/fetch_pdfs.py -pmids 22673749,9685366 -out ./tmp/pubmed_debug_out -errors ./tmp/pubmed_debug_errors.tsv -maxRetries 1 -tmpDir ./tmp
 ```
 
 ## Recreate Environment on Another Machine
@@ -58,7 +58,7 @@ uv sync
 Then run the script:
 
 ```bash
-uv run fetch_pdfs.py -h
+uv run src/fetch_pdfs.py -h
 ```
 
 ## Optional: Activate the Local venv
@@ -67,7 +67,7 @@ If you prefer direct Python execution after activation:
 
 ```bash
 source .venv/bin/activate
-python fetch_pdfs.py -h
+python src/fetch_pdfs.py -h
 ```
 
 ## Notes
