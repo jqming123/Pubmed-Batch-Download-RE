@@ -1,0 +1,18 @@
+[project]
+name = "pubmed-batch-download"
+version = "3.0.0"
+description = "Batch download article PDFs using PubMed IDs."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
