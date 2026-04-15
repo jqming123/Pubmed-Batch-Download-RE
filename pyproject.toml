@@ -8,6 +8,8 @@ dependencies = [
     "requests",
     "beautifulsoup4",
     "lxml",
+    "playwright",
+    "ripgrep>=15.0.0",
 ]
 
 [build-system]
