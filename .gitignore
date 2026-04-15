@@ -1,2 +1,7 @@
 .ipynb_checkpoints/
 fetched_pdfs/
+tmp/
+pycache/
+__pycache__/
+src/pycache/
+src/__pycache__/
