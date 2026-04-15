@@ -1,96 +1,173 @@
-# Pubmed-Batch-Download
+# Pubmed-Batch-Download (Python)
 
-Batch download articles based on PMID (Pubmed ID).  This project is not being updated anymore; I no longer have access to paywall journals.  If someone would like to pick up support in full, go ahead and fork.  Otherwise, I contributions will have to be made by others and I can merge in PRs
+Batch download article PDFs from PubMed IDs (PMIDs).
 
-Version 3.0.0  Last update: 9/15/2020.
+This repository currently focuses on the Python implementation under `src/`.
+The `ruby_version/` directory is legacy and intentionally not covered in this README.
 
-## Required Packages
+## Status
 
-As of version 3.0.0, the program is written for python 3.7.  It uses the following non-default packages:
-```
-requests
-requests3
-beautifulsoup4
-lxml
-```
+- Project name/version in `pyproject.toml`: `pubmed-batch-download` / `3.0.0`
+- Python requirement: `>=3.9`
+- Maintainer note: this project is community-maintained (PRs welcome)
 
-Optionally, instead of installing these yourself, the included "pubmed-batch-downloader-py3.yml" file can be used with anaconda to install an environment that has versions of packages and python known to work with this program.  It can be on linux installed via
-```
-conda env create -f pubmed-batch-downloader-py3.yml
-```
-or on windows via 
-```
-conda env create -f pubmed-batch-downloader-py3-windows.yml
-```
+## Features
 
-Then, activate the environment with
+- Download by `-pmids` (comma-separated) or `-pmf` (TSV/text input file)
+- Skip already-downloaded PDFs in output directory
+- Site-specific parsing rules + generic fallback logic
+- Optional Playwright browser fallback for JS/challenge-heavy pages
+- Failure summary (`-errors`) and detailed reason report (`-failureReport`)
+- Configurable retries, timeouts, temporary directory, and request intervals
+- Warmup workflow (`src/warmup_then_batch.py`) to solve challenge once and reuse browser profile
 
-```
-conda activate pubmed-batch-downloader-py3
-```
-If you use the windows environment, you will then need to run the following commands in order to install the other packages, as I cannot get the yml to work when they are included.
-```
-conda install requests beautifulsoup4 lxml
-conda install requests3
+## Install
+
+### Option A: `uv` (recommended)
+
+```bash
+uv sync
+uv run playwright install chromium
 ```
 
-## Program Usage
+### Option B: `pip`
 
-Each run will download the enumerated files to folder by default titled "fetched_pdfs" inside the application directory, with each pdf named the PMID correpsonding to the article.  Articles already within the PDF folder will not be downloaded again.
-
-Use the program via 
-```
-python src/fetch_pdfs.py [-pmids or -pmf] [optional arguments]
-```
-
-**Arguments**:
-The program has the following arguments.  It must be run with *either* -pmids or -pmf, *not both*.  The help page can be displayed by running the program with -h, or with no arguments.
-```
--pmids: A comma separated list of pmids to download
--pmf: A file with 1 or 2 columns of pmids and file names to download.  See below for example
--out: The output folder to store the downloaded pdfs.  By default, this is ./fetched_pdfs
--errors: File path to write all un-downloaded PMIDs during program run.  By default, this is ./unfetched_pmids.tsv.  This file is overwritten each run.
--failureReport: Detailed TSV report with failure reason categories and URLs.  By default, this is <errors_without_.tsv>.reasons.tsv (or <errors>.reasons.tsv if -errors does not end with .tsv).
--maxRetries: Maximum number of times to try to redownload a pdf on an Connection Error (specifically, an ECONNRESET code 104).
--noBrowserFallback: Disable Playwright browser fallback. Browser fallback is enabled by default.
--browserHeaded: Run the Playwright fallback with a visible browser window (debugging use).
--requestTimeoutSec: HTTP timeout in seconds for requests-based fetching. Default: 40
--browserTimeoutSec: Timeout in seconds for Playwright fallback steps. Default: 45
--tmpDir: Temporary working directory used by this project and browser fallback runtime. Default: ./tmp
--minIntervalSec: Minimum delay in seconds between PMID processing/retry attempts. Default: 1.0
--maxIntervalSec: Maximum delay in seconds between PMID processing/retry attempts. Default: 3.0
-```
-
-If you use `-browserFallback`, install browser dependencies first:
-```
-pip install playwright
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 playwright install chromium
 ```
 
-**PMF File Format**:
-The -pmf file allows the user to input a file with a list of pmids, one per line, to download, instead of listing them in the command line with a comma separated list.  This structure would be as follows
-```
-PMID1
-PMID2
-PMID3
-...
+### Option C: conda (legacy env files)
+
+```bash
+conda env create -f pubmed-batch-downloader-py3.yml
+conda activate pubmed-batch-downloader-py3
 ```
 
-Optionally, this file can have a second column, which is what to name the files when you download them.  For example, if I wanted to download the article with pmid 123 and name it "Article_1.pdf" and pmid 4456 with name "Some_Other_Article.pdf", I would use the following pmf file (note, the columns are tab separated)
+If you use Windows, you can also try:
+
+```bash
+conda env create -f pubmed-batch-downloader-py3-windows.yml
 ```
-123 Article_1
-4456  Some_Other_Article
+
+## Main Usage
+
+Run from repository root:
+
+```bash
+python src/fetch_pdfs.py [-pmids ... | -pmf ...] [other options]
 ```
 
-When the program cannot download files, the non-downloaded PMIDs are stored in a PMF format file.  This can then be directly used at a later date with the program.  PMIDs and names are both stored within this file.
+You must provide exactly one of `-pmids` or `-pmf`.
 
-**Example script usage:**
+### Input modes
 
+1. `-pmids`
+
+```bash
+python src/fetch_pdfs.py -pmids 123,124,125
 ```
-python src/fetch_pdfs.py -pmids 123,124,125,23923,111
+
+2. `-pmf`
+
+```bash
+python src/fetch_pdfs.py -pmf ./example_pmf.tsv
 ```
-will place the files 123.pdf, 124.pdf, 125.pdf, 23923.pdf, and 111.pdf inside of the PDF folder, assuming all were found
 
-## Known download issues
+## `fetch_pdfs.py` Arguments
 
-The requests package cannot execute JavaScript, and thus pages that require javascript to load the link to the pdf or to the journal cannot be obtained with this program.  As of now, this covers the Wolters Kluwer's journals.
+```text
+-pmids                   Comma-separated PMID list (mutually exclusive with -pmf)
+-pmf                     Input file: one PMID per line, or "PMID<TAB>name"
+-out                     Output directory (default: fetched_pdfs)
+-errors                  Failed PMID TSV output path (default: unfetched_pmids.tsv)
+-failureReport           Detailed failure report TSV path
+						 default: <errors_without_.tsv>.reasons.tsv (or <errors>.reasons.tsv)
+-maxRetries              Max retries for network-style failures (default: 3)
+
+-noBrowserFallback       Disable Playwright fallback (fallback is enabled by default)
+-browserHeaded           Run Playwright in headed mode
+-browserUserDataDir      Persistent Playwright user-data/profile directory
+-manualChallengeWaitSec  In headed mode, wait seconds for manual challenge solving (default: 90)
+
+-requestTimeoutSec       Requests timeout seconds (default: 40)
+-browserTimeoutSec       Browser fallback timeout seconds (default: 45)
+
+-tmpDir                  Temporary directory (default: <repo>/tmp)
+-minIntervalSec          Min delay between PMIDs/retries (default: 1.0)
+-maxIntervalSec          Max delay between PMIDs/retries (default: 3.0)
+```
+
+## Warmup + Batch Workflow
+
+Use `src/warmup_then_batch.py` when a site challenge must be solved manually once:
+
+```bash
+python src/warmup_then_batch.py -pmf /path/to/input.tsv -out /path/to/output_dir
+```
+
+What it does:
+
+1. Runs the first PMID in headed browser mode (warmup)
+2. Reuses the same Playwright profile for remaining PMIDs
+3. Uses project `tmp` directory by default for runtime artifacts
+
+Wrapper options:
+
+```text
+-pmf                      Input PMID file (required)
+-out                      Batch output directory (required)
+-errors                   Batch errors path (default: <pmf_stem>_failed2.tsv)
+-tmpDir                   Temporary directory (default: <repo>/tmp)
+-profileDir               Playwright profile directory (default: <tmpDir>/pw_pubmed_profile)
+-warmupOut                Warmup output directory (default: <tmpDir>/pmid_out)
+-warmupErrors             Warmup error file (default: <tmpDir>/pmid_err.tsv)
+-warmupChallengeWaitSec   Warmup manual wait seconds (default: 240)
+-warmupBrowserTimeoutSec  Warmup browser timeout seconds (default: 120)
+-batchBrowserTimeoutSec   Batch browser timeout seconds (default: 90)
+--batch-headed            Run batch stage in headed mode too
+```
+
+## PMF File Format
+
+One-column format:
+
+```text
+12345
+23456
+34567
+```
+
+Two-column format (`PMID<TAB>filename_without_pdf_suffix`):
+
+```text
+12345	Article_One
+23456	Another_Paper
+```
+
+If a download fails, the `-errors` file is written in a PMF-compatible format so it can be retried directly in a later run.
+
+## Output Files
+
+- PDFs are saved to `-out` directory as `<name>.pdf`
+- Failed summary TSV (default: `unfetched_pmids.tsv`)
+- Detailed reasons TSV with columns:
+
+```text
+pmid	name	reason	url	note
+```
+
+Current reason categories include:
+
+- `403_OR_CHALLENGE`
+- `HTML_REDIRECT_ONLY`
+- `NO_PDF_LINK_FOUND`
+- `NETWORK_ERROR`
+
+## Known Limitations
+
+- Requests-only fetching cannot execute JavaScript.
+- Some publisher flows still require Playwright fallback or manual challenge solving.
+- Access to paywalled content depends on your own network/session/institutional permissions.
