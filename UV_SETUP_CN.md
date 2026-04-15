@@ -15,7 +15,7 @@
    - `package = false`
 5. 执行 `uv sync` 成功，生成 `uv.lock`，用于可复现安装。
 6. 已验证命令可运行：
-   - `uv run fetch_pdfs.py -h`
+   - `uv run src/fetch_pdfs.py -h`
 
 ## 为什么需要 `package = false`
 
@@ -32,19 +32,19 @@
 推荐直接通过 uv 运行：
 
 ```bash
-uv run fetch_pdfs.py -pmids 22673749,9685366
+uv run src/fetch_pdfs.py -pmids 22673749,9685366
 ```
 
 使用文件输入模式：
 
 ```bash
-uv run fetch_pdfs.py -pmf example_pmf.tsv
+uv run src/fetch_pdfs.py -pmf example_pmf.tsv
 ```
 
 指定输出目录和错误文件：
 
 ```bash
-uv run fetch_pdfs.py -pmids 22673749,9685366 -out /tmp/pubmed_debug_out -errors /tmp/pubmed_debug_errors.tsv -maxRetries 1
+uv run src/fetch_pdfs.py -pmids 22673749,9685366 -out ./tmp/pubmed_debug_out -errors ./tmp/pubmed_debug_errors.tsv -maxRetries 1 -tmpDir ./tmp
 ```
 
 ## 在新机器上复现环境
@@ -58,7 +58,7 @@ uv sync
 然后验证：
 
 ```bash
-uv run fetch_pdfs.py -h
+uv run src/fetch_pdfs.py -h
 ```
 
 ## 可选：手动激活本地虚拟环境
@@ -67,7 +67,7 @@ uv run fetch_pdfs.py -h
 
 ```bash
 source .venv/bin/activate
-python fetch_pdfs.py -h
+python src/fetch_pdfs.py -h
 ```
 
 ## 备注
