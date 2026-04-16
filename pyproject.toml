@@ -10,6 +10,8 @@ dependencies = [
     "lxml",
     "playwright",
     "ripgrep>=15.0.0",
+    "wiley-tdm>=1.0.0",
+    "pypdf2>=3.0.1",
 ]
 
 [build-system]

@@ -5,3 +5,7 @@ pycache/
 __pycache__/
 src/pycache/
 src/__pycache__/
+input_PMID_table/
+output
+elsevier_api_key.txt
+wiley_tdm_token.txt

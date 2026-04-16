@@ -80,6 +80,11 @@ def main() -> int:
         help="Project temporary directory. Default: <repo>/tmp.",
     )
     parser.add_argument(
+        "-elsevierApiKeyFile",
+        default=str(REPO_ROOT / "elsevier_api_key.txt"),
+        help="Path to the Elsevier API key file. Default: <repo>/elsevier_api_key.txt.",
+    )
+    parser.add_argument(
         "-profileDir",
         default="",
         help="Playwright profile directory. Default: <tmpDir>/pw_pubmed_profile.",
@@ -111,6 +116,11 @@ def main() -> int:
         type=int,
         default=90,
         help="Browser timeout in seconds for the batch run.",
+    )
+    parser.add_argument(
+        "-browserChannel",
+        default="",
+        help="Browser channel for Playwright Chromium engine, e.g. chrome or msedge.",
     )
     parser.add_argument(
         "--batch-headed",
@@ -164,12 +174,16 @@ def main() -> int:
         "-browserHeaded",
         "-browserUserDataDir",
         str(profile_dir),
+        "-browserChannel",
+        str(args.browserChannel),
         "-manualChallengeWaitSec",
         str(args.warmupChallengeWaitSec),
         "-browserTimeoutSec",
         str(args.warmupBrowserTimeoutSec),
         "-tmpDir",
         str(tmp_dir),
+        "-elsevierApiKeyFile",
+        str(_resolve_path(args.elsevierApiKeyFile, REPO_ROOT)),
     ]
 
     print(f"Warmup PMID: {warmup_pmid} ({warmup_name})")
@@ -203,10 +217,14 @@ def main() -> int:
             str(_resolve_path(args.out)),
             "-browserUserDataDir",
             str(profile_dir),
+            "-browserChannel",
+            str(args.browserChannel),
             "-browserTimeoutSec",
             str(args.batchBrowserTimeoutSec),
             "-tmpDir",
             str(tmp_dir),
+            "-elsevierApiKeyFile",
+            str(_resolve_path(args.elsevierApiKeyFile, REPO_ROOT)),
         ]
         if args.batch_headed:
             batch_command.append("-browserHeaded")
