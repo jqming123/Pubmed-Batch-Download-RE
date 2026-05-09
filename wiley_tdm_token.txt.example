@@ -1,0 +1,10 @@
+# Wiley Text and Data Mining (TDM) API Token
+# 
+# To use the Wiley TDM Client for downloading PDFs:
+# 1. Request a TDM API token at: https://onlinelibrary.wiley.com/library-info/resources/text-and-datamining
+# 2. Copy your token here (replace the text below)
+# 3. This file will be read by the downloader scripts
+# 
+# Keep the token confidential - do not commit to version control!
+
+YOUR Wiley Text and Data Mining (TDM) API Token
