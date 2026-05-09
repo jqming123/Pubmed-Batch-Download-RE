@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from browser_fallback import run_browser_fallback_download
 from check_pdf import is_pdf_by_magic_number, get_pdf_page_count
 from fetch_cli_args import PMID_INPUT_SENTINEL, parse_and_validate_args
+from core_download_by_pmid import download_pdf_for_pmid
 from elsevier_api_fetch import download_elsevier_pdf_by_pubmed_id, looks_like_elsevier_article_source
 from wiley_api_fetch import download_wiley_pdf_by_pmid, looks_like_wiley_article_source, setup_wiley_api_token
 
@@ -25,6 +26,7 @@ REASON_NO_PDF_LINK_FOUND = "NO_PDF_LINK_FOUND"
 REASON_NETWORK_ERROR = "NETWORK_ERROR"
 REASON_WILEY_TDM_DOWNLOAD_FAILED = "WILEY_TDM_DOWNLOAD_FAILED"
 REASON_TDM_CLIENT_INIT_FAILED = "TDM_CLIENT_INIT_FAILED"
+REASON_CORRUPTED_PDF = "CORRUPTED_PDF"
 REASON_LOW_PAGE_COUNT = "LOW_PAGE_COUNT"
 
 REASON_PRIORITY = {
@@ -32,6 +34,7 @@ REASON_PRIORITY = {
     REASON_NETWORK_ERROR: 3,
     REASON_WILEY_TDM_DOWNLOAD_FAILED: 3,
     REASON_TDM_CLIENT_INIT_FAILED: 3,
+    REASON_CORRUPTED_PDF: 3,
     REASON_HTML_REDIRECT_ONLY: 2,
     REASON_NO_PDF_LINK_FOUND: 1,
     REASON_LOW_PAGE_COUNT: 0,
@@ -42,6 +45,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TMP_DIR = os.path.join(PROJECT_ROOT, "tmp")
 DEFAULT_ELSEVIER_API_KEY_FILE = os.path.join(PROJECT_ROOT, "elsevier_api_key.txt")
 DEFAULT_WILEY_TDM_TOKEN_FILE = os.path.join(PROJECT_ROOT, "wiley_tdm_token.txt")
+DEFAULT_CORE_API_KEY_FILE = os.path.join(PROJECT_ROOT, "core_api_key.txt")
 
 
 @dataclass(frozen=True)
@@ -52,7 +56,6 @@ class FetchConfig:
     errors: str
     maxRetries: int
     failureReport: str
-    noBrowserFallback: bool
     browserFallback: bool
     browserHeaded: bool
     requestTimeoutSec: int
@@ -72,7 +75,6 @@ def _build_config(args: dict) -> FetchConfig:
         errors=args["errors"],
         maxRetries=args["maxRetries"],
         failureReport=args["failureReport"],
-        noBrowserFallback=args["noBrowserFallback"],
         browserFallback=args["browserFallback"],
         browserHeaded=args["browserHeaded"],
         requestTimeoutSec=args["requestTimeoutSec"],
@@ -104,11 +106,7 @@ def _contains_challenge_marker(text: str) -> bool:
 
 def _is_pdf_response(response: requests.Response) -> bool:
     content_type = response.headers.get("content-type", "").lower()
-    return (
-        response.url.lower().endswith(".pdf")
-        or "application/pdf" in content_type
-        or is_pdf_by_magic_number(response.content)
-    )
+    return response.url.lower().endswith(".pdf") or "application/pdf" in content_type
 
 
 def _classify_response_failure(response: requests.Response) -> str:
@@ -204,6 +202,33 @@ def _try_publisher_api_download(pmid: str, name: str, response: requests.Respons
     return False, failure_reason, failure_note, last_seen_url
 
 
+def _try_core_api_download(pmid: str, name: str, config: FetchConfig):
+    output_pdf_path = "{0}/{1}.pdf".format(config.out, name)
+    if not os.path.exists(DEFAULT_CORE_API_KEY_FILE):
+        return False, REASON_NO_PDF_LINK_FOUND, "core api key file not found: {0}".format(DEFAULT_CORE_API_KEY_FILE), ""
+
+    print("Trying CORE API download")
+    try:
+        saved, reason, note, final_url = download_pdf_for_pmid(
+            pmid=pmid,
+            output_pdf_path=output_pdf_path,
+            api_key_file=DEFAULT_CORE_API_KEY_FILE,
+            timeout_sec=config.requestTimeoutSec,
+            max_retries=config.maxRetries,
+            retry_base_sec=1.5,
+            delay_min_sec=config.minIntervalSec,
+            delay_max_sec=config.maxIntervalSec,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, REASON_NETWORK_ERROR, str(exc), ""
+
+    if saved:
+        print("** fetching of reprint {0} succeeded via CORE API".format(pmid))
+        return True, "", "", final_url
+
+    return False, reason, note, final_url
+
+
 def fetch(pmid, finders, name, headers, config: FetchConfig):
     # 先通过 PubMed 的 prlinks 拿到出版商落地页，再逐个 finder 解析 PDF 线索。
     uri = (
@@ -265,6 +290,18 @@ def fetch(pmid, finders, name, headers, config: FetchConfig):
                 failure_note = note
                 last_seen_url = final_url or pdfUrl
 
+    if not success:
+        core_success, core_reason, core_note, core_url = _try_core_api_download(pmid, name, config)
+        if core_success:
+            success = True
+            failure_reason = ""
+            failure_note = ""
+            last_seen_url = core_url or last_seen_url
+        else:
+            failure_reason = _merge_reason(failure_reason, core_reason)
+            failure_note = core_note
+            last_seen_url = core_url or last_seen_url
+
     if not success and config.browserFallback:
         # 浏览器兜底用于处理 JS 渲染、挑战页和复杂跳转。
         print("Trying browser fallback via Playwright")
@@ -294,19 +331,6 @@ def fetch(pmid, finders, name, headers, config: FetchConfig):
                 last_seen_url,
             )
         )
-    elif success:
-        # 统一检查所有下载方式的PDF页数（API、finder、浏览器）
-        pdf_path = "{0}/{1}.pdf".format(config.out, pmid)
-        page_count = get_pdf_page_count(pdf_path)
-        if page_count is not None and page_count < 4:
-            failure_reason = REASON_LOW_PAGE_COUNT
-            failure_note = "low page count: {0} pages".format(page_count)
-            print(
-                "** Reprint {0} downloaded but flagged for review (low page count): {1}".format(
-                    pmid,
-                    failure_note,
-                )
-            )
 
     return success, failure_reason, failure_note, last_seen_url
 
@@ -341,6 +365,44 @@ def _resolve_failure_report_path(errors_path: str, failure_report: str) -> str:
     if errors_ext.lower() == ".tsv" and errors_root:
         return "{0}.reasons.tsv".format(errors_root)
     return "{0}.reasons.tsv".format(errors_path)
+
+
+def _post_download_validate_pdf(name: str, config: FetchConfig):
+    pdf_filename = "{0}.pdf".format(name)
+    pdf_path = os.path.join(config.out, pdf_filename)
+
+    if not os.path.exists(pdf_path):
+        return False, REASON_CORRUPTED_PDF, "download marked successful but file missing"
+
+    try:
+        with open(pdf_path, "rb") as pdf_file:
+            file_header = pdf_file.read(8)
+    except OSError as exc:
+        return False, REASON_CORRUPTED_PDF, "failed to read pdf: {0}".format(exc)
+
+    if not is_pdf_by_magic_number(file_header):
+        try:
+            os.remove(pdf_path)
+        except OSError as exc:
+            return False, REASON_CORRUPTED_PDF, "invalid pdf magic; failed to remove file: {0}".format(exc)
+        return False, REASON_CORRUPTED_PDF, "invalid pdf magic number; file removed"
+
+    page_count = get_pdf_page_count(pdf_path)
+    if page_count is None:
+        try:
+            os.remove(pdf_path)
+        except OSError as exc:
+            return False, REASON_CORRUPTED_PDF, "unreadable pdf; failed to remove file: {0}".format(exc)
+        return False, REASON_CORRUPTED_PDF, "unreadable pdf; file removed"
+
+    if page_count < 4:
+        need_check_dir = os.path.join(config.out, "need_check")
+        os.makedirs(need_check_dir, exist_ok=True)
+        moved_path = os.path.join(need_check_dir, pdf_filename)
+        os.replace(pdf_path, moved_path)
+        return True, REASON_LOW_PAGE_COUNT, "low page count: {0} pages; moved to {1}".format(page_count, moved_path)
+
+    return True, "", ""
 
 
 def acsPublications(req, soup, headers, config: FetchConfig):
@@ -520,9 +582,24 @@ def main() -> None:
                     try:
                         success, reason, note, url = fetch(pmid, FINDER_REGISTRY, name, headers, config)
                         if success:
-                            # 即使成功，如果有低页数警告，也需要记录
-                            if reason == REASON_LOW_PAGE_COUNT:
-                                _write_failure_entry(errorPmids, failureReport, pmid, name, reason, url, note)
+                            # 下载结束后统一做 PDF 完整性和页数检查。
+                            post_success, post_reason, post_note = _post_download_validate_pdf(name, config)
+                            if not post_success:
+                                print(
+                                    "** Reprint {0} downloaded but removed after validation: {1}".format(
+                                        pmid,
+                                        post_note,
+                                    )
+                                )
+                                _write_failure_entry(errorPmids, failureReport, pmid, name, post_reason, url, post_note)
+                            elif post_reason == REASON_LOW_PAGE_COUNT:
+                                print(
+                                    "** Reprint {0} downloaded but flagged for review (low page count): {1}".format(
+                                        pmid,
+                                        post_note,
+                                    )
+                                )
+                                _write_failure_entry(errorPmids, failureReport, pmid, name, post_reason, url, post_note)
                             retriesSoFar = config.maxRetries
                             break
 

@@ -41,8 +41,8 @@ def _build_parser(default_tmp_dir: str) -> argparse.ArgumentParser:
         default="",
     )
     parser.add_argument(
-        "-noBrowserFallback",
-        help="Disable Playwright browser fallback (enabled by default).",
+        "-browserFallback",
+        help="Enable Playwright browser fallback.",
         action="store_true",
     )
     parser.add_argument(
@@ -111,7 +111,6 @@ def parse_and_validate_args(default_tmp_dir: str, argv: list[str] | None = None)
         raise SystemExit(1)
 
     args = vars(parser.parse_args(arg_list))
-    args["browserFallback"] = not args["noBrowserFallback"]
 
     if args["minIntervalSec"] < 0 or args["maxIntervalSec"] < 0:
         print("Error: -minIntervalSec and -maxIntervalSec must be non-negative.")
