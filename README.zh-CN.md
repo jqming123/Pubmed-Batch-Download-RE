@@ -70,7 +70,7 @@ python src/fetch_pdfs.py -pmf ./example_pmf.tsv
 逗号分隔 PMID 列表（与 -pmf 互斥）
 
 -pmf
-输入文件：每行一个 PMID，或“PMID 和 name 之间用制表符分隔”
+输入文件：每行一个 PMID，或“PMID 和 name 之间用制表符分隔”, 没有表头
 
 -out
 输出目录（默认：fetched_pdfs）
@@ -86,8 +86,8 @@ python src/fetch_pdfs.py -pmf ./example_pmf.tsv
 -maxRetries
 网络类失败最大重试次数（默认：3）
 
--noBrowserFallback
-禁用 Playwright 浏览器兜底（默认启用兜底）
+-browserFallback
+启用 Playwright 浏览器兜底
 
 -browserHeaded
 浏览器兜底使用有界面模式
@@ -148,13 +148,18 @@ python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -minIntervalSec 2 -max
 **禁用浏览器兜底，仅用 requests：**
 
 ```bash
-python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -noBrowserFallback
+python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -browserFallback
 ```
 
 **重试前一次失败的 PMID：**
 
 ```bash
 python src/fetch_pdfs.py -pmf ./failed.tsv -out ./pdfs_retry -errors ./failed_again.tsv
+```
+
+**测试新功能**
+```bash
+python src/fetch_pdfs.py -pmf input_test/test_pdf_check.txt -out output_test -errors output_test/failed.tsv
 ```
 
 ### Elsevier API key 文件
@@ -400,7 +405,7 @@ python src/fetch_pdfs.py \
 python src/fetch_pdfs.py \
   -pmf ./pmids.tsv \
   -out ./pdfs \
-  -noBrowserFallback
+  -browserFallback
 
 # 需要浏览器的站点，用无界面模式 + 较长超时
 python src/fetch_pdfs.py \

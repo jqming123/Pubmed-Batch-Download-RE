@@ -15,6 +15,7 @@ The `ruby_version/` directory is legacy and intentionally not covered in this RE
 
 - Download by `-pmids` (comma-separated) or `-pmf` (TSV/text input file)
 - Skip already-downloaded PDFs in output directory
+- Download order: PubMed prlinks -> Elsevier/Wiley API -> site-specific finders -> CORE API -> optional Playwright browser fallback
 - Site-specific parsing rules + generic fallback logic
 - Optional Playwright browser fallback for JS/challenge-heavy pages
 - Failure summary (`-errors`) and detailed reason report (`-failureReport`)
@@ -89,7 +90,7 @@ python src/fetch_pdfs.py -pmf ./example_pmf.tsv
                          default: <errors_without_.tsv>.reasons.tsv (or <errors>.reasons.tsv)
 -maxRetries              Max retries for network-style failures (default: 3)
 
--noBrowserFallback       Disable Playwright fallback (fallback is enabled by default)
+-browserFallback         Enable Playwright fallback
 -browserHeaded           Run Playwright in headed mode
 -browserUserDataDir      Persistent Playwright user-data/profile directory
 -manualChallengeWaitSec  In headed mode, wait seconds for manual challenge solving (default: 90)
@@ -119,7 +120,7 @@ python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -errors ./failed.tsv -
 **Enable browser fallback with longer timeout for challenging sites:**
 
 ```bash
-python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -browserTimeoutSec 60 -requestTimeoutSec 45
+python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -browserFallback -browserTimeoutSec 60 -requestTimeoutSec 45
 ```
 
 **Headed browser mode for manual challenge solving:**
@@ -134,10 +135,10 @@ python src/fetch_pdfs.py -pmids 123456 -out ./pdfs -browserHeaded -manualChallen
 python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -minIntervalSec 2 -maxIntervalSec 5
 ```
 
-**Disable browser fallback for faster requests-only mode:**
+**Enable browser fallback explicitly:**
 
 ```bash
-python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -noBrowserFallback
+python src/fetch_pdfs.py -pmf ./pmid_list.tsv -out ./pdfs -browserFallback
 ```
 
 **Retry failed PMIDs from previous run:**
@@ -163,6 +164,22 @@ echo "your-actual-elsevier-api-key-here" > elsevier_api_key.txt
 
 # Add to .gitignore to prevent accidental commits
 echo "elsevier_api_key.txt" >> .gitignore
+```
+
+### CORE API key file
+
+If you want the pipeline to try CORE API before browser fallback, create a plain text file named `core_api_key.txt` in the repository root and put your CORE API key on the first non-empty line.
+
+The main script reads this file automatically when the CORE step is reached.
+
+**Setup example:**
+
+```bash
+# Create CORE API key file
+echo "your-actual-core-api-key-here" > core_api_key.txt
+
+# Add to .gitignore to prevent accidental commits
+echo "core_api_key.txt" >> .gitignore
 ```
 
 ### Wiley TDM API Token File
@@ -281,7 +298,7 @@ Current reason categories include:
 - `WILEY_TDM_DOWNLOAD_FAILED`
 - `TDM_CLIENT_INIT_FAILED`
 
-Elsevier/Wiley API failures are reported through the same failure channels as other network/API errors, then the script falls back to the site-specific finders and browser fallback.
+Elsevier/Wiley API failures are reported through the same failure channels as other network/API errors, then the script falls back to the site-specific finders, CORE API, and browser fallback.
 
 ## Known Limitations
 
@@ -376,7 +393,7 @@ python src/fetch_pdfs.py \
 python src/fetch_pdfs.py \
   -pmf ./pmids.tsv \
   -out ./pdfs \
-  -noBrowserFallback
+  -browserFallback
 
 # For sites that need browser, use headless with longer timeout
 python src/fetch_pdfs.py \
